@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo - Sistema Inteligente con Balizas (Simulación Kontakt.io)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body{
+      background:url('https://upload.wikimedia.org/wikipedia/commons/3/3a/Aeropuerto_El_Dorado_Bogota.jpg') no-repeat center center fixed;
+      background-size:cover;
+      font-family:Inter, system-ui, Arial;
+    }
+    .app-shell{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:20px;background:rgba(246,247,251,0.95);border-radius:12px;margin-top:20px}
+    .card{box-shadow:0 6px 18px rgba(23,27,42,0.06)}
+    .mobile-preview{width:360px;margin:0 auto;background:#fff;border-radius:18px;padding:16px;box-shadow:0 12px 30px rgba(23,27,42,0.08)}
+    .screen{height:640px;border-radius:12px;overflow:auto;border:1px solid #e6e9ef;padding:12px}
+    .beacon-pill{cursor:pointer}
+    .notif{background:#0d6efd;color:white;padding:10px;border-radius:10px;margin-bottom:10px}
+    @media(max-width:900px){.app-shell{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2 class="mt-4 text-white">Demo: Sistema de Información con Balizas (simulación Kontakt.io)</h2>
+    <p class="text-white">Esta demo es un prototipo local que simula la gestión de balizas, notificaciones y analíticas para un aeropuerto. Está pensado para generar capturas de pantalla que ilustren el funcionamiento sin necesidad de balizas reales ni claves de Kontakt.io.</p>
+
+    <div class="app-shell">
+      <!-- ADMIN PANEL -->
+      <div>
+        <div class="card p-3 mb-3">
+          <h5>Panel administrador</h5>
+          <p class="text-muted small">Cree balizas, asigne mensajes y vea el registro de triggers.</p>
+
+          <form id="beaconForm" class="row g-2">
+            <div class="col-12">
+              <input id="bName" class="form-control" placeholder="Nombre beacon (ej: Puerta A12)" required>
+            </div>
+            <div class="col-6">
+              <input id="bUUID" class="form-control" placeholder="UUID (opcional)" value="550e8400-e29b-41d4-a716-446655440000">
+            </div>
+            <div class="col-3">
+              <input id="bMajor" class="form-control" placeholder="Major" value="1">
+            </div>
+            <div class="col-3">
+              <input id="bMinor" class="form-control" placeholder="Minor" value="1">
+            </div>
+            <div class="col-12">
+              <textarea id="bMsg" class="form-control" placeholder="Mensaje / notificación que recibirá el usuario"></textarea>
+            </div>
+            <div class="col-6">
+              <select id="bType" class="form-select">
+                <option value="info">Información de vuelo</option>
+                <option value="promo">Promoción</option>
+                <option value="nav">Navegación</option>
+                <option value="security">Seguridad</option>
+              </select>
+            </div>
+            <div class="col-6 d-grid">
+              <button class="btn btn-primary" id="addBeacon">Añadir baliza</button>
+            </div>
+          </form>
+
+        </div>
+
+        <div class="card p-3 mb-3">
+          <h6>Beacons registrados</h6>
+          <div id="beaconList" class="mt-2"></div>
+        </div>
+
+        <div class="card p-3 mb-3">
+          <h6>Registro de eventos (simulados)</h6>
+          <div id="logArea" style="max-height:220px;overflow:auto;font-size:13px"></div>
+          <div class="mt-2 d-flex gap-2">
+            <button class="btn btn-outline-secondary w-100" id="clearLog">Limpiar registro</button>
+            <button class="btn btn-outline-danger w-100" id="resetDemo">Resetear demo</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- MAIN / MOBILE PREVIEW + ANALYTICS -->
+      <div>
+        <div class="d-flex gap-3 mb-3">
+          <div class="card p-3 flex-fill">
+            <h6>Simulador móvil (vista del pasajero)</h6>
+            <p class="small text-muted">Use los botones para "mover" el usuario y simular la proximidad a cada baliza. Las notificaciones aparecerán aquí como en un teléfono real.</p>
+
+            <div class="mobile-preview">
+              <div class="screen" id="mobileScreen">
+                <div id="notifBox"></div>
+
+                <div class="mb-3">
+                  <strong>Ubicación simulada:</strong> <span id="curLocation">--</span>
+                </div>
+
+                <div class="mb-2">
+                  <div class="d-flex flex-wrap gap-2" id="moveButtons"></div>
+                </div>
+
+                <hr>
+                <div>
+                  <h6>Detalle de la notificación</h6>
+                  <div id="detailArea" style="min-height:80px;color:#333"></div>
+                </div>
+
+                <hr>
+                <!-- Botón Google Maps -->
+                <div class="text-center mt-3">
+                  <a href="https://www.google.com/maps/place/Aeropuerto+Internacional+El+Dorado/" target="_blank" class="btn btn-success w-100">Ir al Aeropuerto El Dorado en Google Maps</a>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <div class="card p-3" style="width:48%">
+            <h6>Analíticas (simuladas)</h6>
+            <canvas id="chartFlows" height="200"></canvas>
+            <p class="small text-muted mt-2">Conteo de triggers por zona (datos de prueba generados por la demo).</p>
+          </div>
+        </div>
+
+        <div class="card p-3">
+          <h6>Instrucciones para capturas</h6>
+          <ol>
+            <li>En el panel izquierdo cree 3-5 balizas (puede usar nombres como Puerta A1, Duty Free, Control de seguridad).</li>
+            <li>En el simulador móvil pulse los botones "Mover a..." para generar notificaciones. Cada evento queda en el registro.</li>
+            <li>Capture pantallas de: panel administrador con lista de balizas, notificación emergente en el móvil, y el gráfico de analíticas.</li>
+            <li>Si necesita imágenes más reales, cambie los textos y logos en la sección de personalización dentro del código fuente.</li>
+          </ol>
+        </div>
+
+      </div>
+    </div>
+
+    <footer class="mt-4 mb-5 text-white small">Nota: Esta demo es una simulación local. Para integrar con Kontakt.io real se requieren las credenciales (API key) y el uso de su SDK en Android/iOS o la API REST de Kontakt.io.</footer>
+  </div>
+
+<script>
+  // Estado demo
+  const beacons = [
+    {id:1,name:'Puerta A12',uuid:'550e8400-e29b-41d4-a716-446655440000',major:1,minor:12,msg:'Puerta A12 abierta. Embarque en 20 min.',type:'info',count:0},
+    {id:2,name:'Control Seguridad',uuid:'550e8400-e29b-41d4-a716-446655440001',major:1,minor:2,msg:'Tiempo de espera estimado: 8 min.',type:'nav',count:0},
+    {id:3,name:'Duty Free',uuid:'550e8400-e29b-41d4-a716-446655440002',major:1,minor:3,msg:'10% de descuento en perfumes esta hora.',type:'promo',count:0}
+  ];
+
+  const logArea = document.getElementById('logArea');
+  const beaconList = document.getElementById('beaconList');
+  const notifBox = document.getElementById('notifBox');
+  const detailArea = document.getElementById('detailArea');
+  const curLocation = document.getElementById('curLocation');
+  const moveButtons = document.getElementById('moveButtons');
+
+  function renderBeacons(){
+    beaconList.innerHTML='';
+    beacons.forEach(b=>{
+      const div = document.createElement('div');
+      div.className='d-flex align-items-center justify-content-between p-2 mb-2 border rounded beacon-pill';
+      div.innerHTML = `<div><strong>${b.name}</strong><div class='small text-muted'>UUID: ${b.uuid} • Major:${b.major} Minor:${b.minor}</div></div><div><button class='btn btn-sm btn-outline-danger' data-id='${b.id}'>Eliminar</button></div>`;
+      beaconList.appendChild(div);
+      div.querySelector('button').addEventListener('click',()=>{removeBeacon(b.id)});
+    });
+    renderMoveButtons();
+  }
+
+  function renderMoveButtons(){
+    moveButtons.innerHTML='';
+    beacons.forEach(b=>{
+      const btn = document.createElement('button');
+      btn.className='btn btn-sm btn-outline-primary';
+      btn.textContent = 'Mover a ' + b.name;
+      btn.addEventListener('click',()=>simulateProximity(b.id));
+      moveButtons.appendChild(btn);
+    });
+  }
+
+  function addBeaconFromForm(e){
+    e.preventDefault();
+    const id = Date.now();
+    const name = document.getElementById('bName').value || 'Beacon '+id;
+    const uuid = document.getElementById('bUUID').value || 'auto';
+    const major = document.getElementById('bMajor').value || 1;
+    const minor = document.getElementById('bMinor').value || 1;
+    const msg = document.getElementById('bMsg').value || 'Mensaje de prueba.';
+    const type = document.getElementById('bType').value;
+    beacons.push({id,name,uuid,major,minor,msg,type,count:0});
+    document.getElementById('beaconForm').reset();
+    renderBeacons();
+    appendLog(`Baliza creada: ${name}`);
+    updateChart();
+  }
+
+  function removeBeacon(id){
+    const idx = beacons.findIndex(b=>b.id===id);
+    if(idx>-1){
+      appendLog(`Baliza eliminada: ${beacons[idx].name}`);
+      beacons.splice(idx,1);
+      renderBeacons();
+      updateChart();
+    }
+  }
+
+  function appendLog(text){
+    const p = document.createElement('div');
+    p.textContent = new Date().toLocaleTimeString() + ' — ' + text;
+    logArea.prepend(p);
+  }
+
+  function simulateProximity(id){
+    const b = beacons.find(x=>x.id===id);
+    if(!b) return;
+    b.count = (b.count||0)+1;
+    curLocation.textContent = b.name;
+    showNotification(b);
+    appendLog(`Trigger: ${b.name} → ${b.msg}`);
+    updateChart();
+  }
+
+  function showNotification(b){
+    notifBox.innerHTML = `<div class='notif'>${b.type.toUpperCase()} — ${b.name}: ${b.msg}</div>`;
+    detailArea.innerHTML = `<strong>${b.name}</strong><p class='small text-muted'>UUID: ${b.uuid} • Major:${b.major} Minor:${b.minor}</p><p>${b.msg}</p>`;
+    setTimeout(()=>{notifBox.innerHTML='';},6000);
+  }
+
+  // Chart
+  const ctx = document.getElementById('chartFlows');
+  const chart = new Chart(ctx,{type:'bar',data:{labels:beacons.map(b=>b.name),datasets:[{label:'Triggers',data:beacons.map(b=>b.count)}]},options:{responsive:true,plugins:{legend:{display:false}}}});
+  function updateChart(){
+    chart.data.labels = beacons.map(b=>b.name);
+    chart.data.datasets[0].data = beacons.map(b=>b.count||0);
+    chart.update();
+  }
+
+  // Events
+  document.getElementById('addBeacon').addEventListener('click',addBeaconFromForm);
+  document.getElementById('clearLog').addEventListener('click',()=>{logArea.innerHTML='';appendLog('Registro limpiado');});
+  document.getElementById('resetDemo').addEventListener('click',()=>{location.reload()});
+
+  // Init
+  renderBeacons();
+  updateChart();
+</script>
+</body>
+</html>
